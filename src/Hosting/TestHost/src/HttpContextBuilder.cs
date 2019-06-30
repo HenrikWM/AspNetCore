@@ -2,45 +2,56 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
 namespace Microsoft.AspNetCore.TestHost
 {
     internal class HttpContextBuilder : IHttpBodyControlFeature
     {
-        private readonly IHttpApplication<Context> _application;
+        private readonly ApplicationWrapper _application;
+        private readonly bool _preserveExecutionContext;
         private readonly HttpContext _httpContext;
         
-        private TaskCompletionSource<HttpContext> _responseTcs = new TaskCompletionSource<HttpContext>(TaskCreationOptions.RunContinuationsAsynchronously);
-        private ResponseStream _responseStream;
-        private ResponseFeature _responseFeature = new ResponseFeature();
-        private CancellationTokenSource _requestAbortedSource = new CancellationTokenSource();
+        private readonly TaskCompletionSource<HttpContext> _responseTcs = new TaskCompletionSource<HttpContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ResponseBodyReaderStream _responseReaderStream;
+        private readonly ResponseBodyPipeWriter _responsePipeWriter;
+        private readonly ResponseFeature _responseFeature;
+        private readonly RequestLifetimeFeature _requestLifetimeFeature = new RequestLifetimeFeature();
+        private readonly ResponseTrailersFeature _responseTrailersFeature = new ResponseTrailersFeature();
         private bool _pipelineFinished;
-        private Context _testContext;
+        private bool _returningResponse;
+        private object _testContext;
+        private Action<HttpContext> _responseReadCompleteCallback;
 
-        internal HttpContextBuilder(IHttpApplication<Context> application, bool allowSynchronousIO)
+        internal HttpContextBuilder(ApplicationWrapper application, bool allowSynchronousIO, bool preserveExecutionContext)
         {
             _application = application ?? throw new ArgumentNullException(nameof(application));
             AllowSynchronousIO = allowSynchronousIO;
+            _preserveExecutionContext = preserveExecutionContext;
             _httpContext = new DefaultHttpContext();
+            _responseFeature = new ResponseFeature(Abort);
 
             var request = _httpContext.Request;
             request.Protocol = "HTTP/1.1";
             request.Method = HttpMethods.Get;
 
+            var pipe = new Pipe();
+            _responseReaderStream = new ResponseBodyReaderStream(pipe, AbortRequest, () => _responseReadCompleteCallback?.Invoke(_httpContext));
+            _responsePipeWriter = new ResponseBodyPipeWriter(pipe, ReturnResponseMessageAsync);
+            _responseFeature.Body = new ResponseBodyWriterStream(_responsePipeWriter, () => AllowSynchronousIO);
+            _responseFeature.BodySnapshot = _responseFeature.Body;
+            _responseFeature.BodyWriter = _responsePipeWriter;
+
             _httpContext.Features.Set<IHttpBodyControlFeature>(this);
             _httpContext.Features.Set<IHttpResponseFeature>(_responseFeature);
-            var requestLifetimeFeature = new HttpRequestLifetimeFeature();
-            requestLifetimeFeature.RequestAborted = _requestAbortedSource.Token;
-            _httpContext.Features.Set<IHttpRequestLifetimeFeature>(requestLifetimeFeature);
-            
-            _responseStream = new ResponseStream(ReturnResponseMessageAsync, AbortRequest, () => AllowSynchronousIO);
-            _responseFeature.Body = _responseStream;
+            _httpContext.Features.Set<IHttpResponseStartFeature>(_responseFeature);
+            _httpContext.Features.Set<IHttpRequestLifetimeFeature>(_requestLifetimeFeature);
+            _httpContext.Features.Set<IHttpResponseTrailersFeature>(_responseTrailersFeature);
+            _httpContext.Features.Set<IResponseBodyPipeFeature>(_responseFeature);
         }
 
         public bool AllowSynchronousIO { get; set; }
@@ -55,6 +66,11 @@ namespace Microsoft.AspNetCore.TestHost
             configureContext(_httpContext);
         }
 
+        internal void RegisterResponseReadCompleteCallback(Action<HttpContext> responseReadCompleteCallback)
+        {
+            _responseReadCompleteCallback = responseReadCompleteCallback;
+        }
+
         /// <summary>
         /// Start processing the request.
         /// </summary>
@@ -63,11 +79,14 @@ namespace Microsoft.AspNetCore.TestHost
         {
             var registration = cancellationToken.Register(AbortRequest);
 
-            _testContext = _application.CreateContext(_httpContext.Features);
-
-            // Async offload, don't let the test code block the caller.
-            _ = Task.Factory.StartNew(async () =>
+            // Everything inside this function happens in the SERVER's execution context (unless PreserveExecutionContext is true)
+            async Task RunRequestAsync()
             {
+                // This will configure IHttpContextAccessor so it needs to happen INSIDE this function,
+                // since we are now inside the Server's execution context. If it happens outside this cont
+                // it will be lost when we abandon the execution context.
+                _testContext = _application.CreateContext(_httpContext.Features);
+
                 try
                 {
                     await _application.ProcessRequestAsync(_testContext);
@@ -83,7 +102,20 @@ namespace Microsoft.AspNetCore.TestHost
                 {
                     registration.Dispose();
                 }
-            });
+            }
+
+            // Async offload, don't let the test code block the caller.
+            if (_preserveExecutionContext)
+            {
+                _ = Task.Factory.StartNew(RunRequestAsync);
+            }
+            else
+            {
+                ThreadPool.UnsafeQueueUserWorkItem(_ =>
+                {
+                    _ = RunRequestAsync();
+                }, null);
+            }
 
             return _responseTcs.Task;
         }
@@ -92,27 +124,28 @@ namespace Microsoft.AspNetCore.TestHost
         {
             if (!_pipelineFinished)
             {
-                _requestAbortedSource.Cancel();
+                _requestLifetimeFeature.Abort();
             }
-            _responseStream.CompleteWrites();
+            _responsePipeWriter.Complete();
         }
 
         internal async Task CompleteResponseAsync()
         {
             _pipelineFinished = true;
             await ReturnResponseMessageAsync();
-            _responseStream.CompleteWrites();
+            _responsePipeWriter.Complete();
             await _responseFeature.FireOnResponseCompletedAsync();
         }
 
         internal async Task ReturnResponseMessageAsync()
         {
-            // Check if the response has already started because the TrySetResult below could happen a bit late
+            // Check if the response is already returning because the TrySetResult below could happen a bit late
             // (as it happens on a different thread) by which point the CompleteResponseAsync could run and calls this
             // method again.
-            if (!_responseFeature.HasStarted)
+            if (!_returningResponse)
             {
-                // Sets HasStarted
+                _returningResponse = true;
+
                 try
                 {
                     await _responseFeature.FireOnSendingHeadersAsync();
@@ -129,6 +162,16 @@ namespace Microsoft.AspNetCore.TestHost
                 {
                     newFeatures[pair.Key] = pair.Value;
                 }
+                var serverResponseFeature = _httpContext.Features.Get<IHttpResponseFeature>();
+                // The client gets a deep copy of this so they can interact with the body stream independently of the server.
+                var clientResponseFeature = new HttpResponseFeature()
+                {
+                    StatusCode = serverResponseFeature.StatusCode,
+                    ReasonPhrase = serverResponseFeature.ReasonPhrase,
+                    Headers = serverResponseFeature.Headers,
+                    Body = _responseReaderStream
+                };
+                newFeatures.Set<IHttpResponseFeature>(clientResponseFeature);
                 _responseTcs.TrySetResult(new DefaultHttpContext(newFeatures));
             }
         }
@@ -136,7 +179,8 @@ namespace Microsoft.AspNetCore.TestHost
         internal void Abort(Exception exception)
         {
             _pipelineFinished = true;
-            _responseStream.Abort(exception);
+            _responsePipeWriter.Abort(exception);
+            _responseReaderStream.Abort(exception);
             _responseTcs.TrySetException(exception);
         }
     }

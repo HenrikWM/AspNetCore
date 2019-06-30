@@ -1,12 +1,28 @@
-﻿import { EventForDotNet, UIEventArgs } from './EventForDotNet';
+import { EventForDotNet, UIEventArgs } from './EventForDotNet';
+import { EventFieldInfo } from './EventFieldInfo';
 
 const nonBubblingEvents = toLookup([
-  'abort', 'blur', 'change', 'error', 'focus', 'load', 'loadend', 'loadstart', 'mouseenter', 'mouseleave',
-  'progress', 'reset', 'scroll', 'submit', 'unload', 'DOMNodeInsertedIntoDocument', 'DOMNodeRemovedFromDocument'
+  'abort',
+  'blur',
+  'change',
+  'error',
+  'focus',
+  'load',
+  'loadend',
+  'loadstart',
+  'mouseenter',
+  'mouseleave',
+  'progress',
+  'reset',
+  'scroll',
+  'submit',
+  'unload',
+  'DOMNodeInsertedIntoDocument',
+  'DOMNodeRemovedFromDocument',
 ]);
 
 export interface OnEventCallback {
-  (event: Event, eventHandlerId: number, eventArgs: EventForDotNet<UIEventArgs>): void;
+  (event: Event, eventHandlerId: number, eventArgs: EventForDotNet<UIEventArgs>, eventFieldInfo: EventFieldInfo | null): void;
 }
 
 // Responsible for adding/removing the eventInfo on an expando property on DOM elements, and
@@ -14,7 +30,9 @@ export interface OnEventCallback {
 // event listeners as required (and also maps actual events back to the given callback).
 export class EventDelegator {
   private static nextEventDelegatorId = 0;
+
   private eventsCollectionKey: string;
+
   private eventInfoStore: EventInfoStore;
 
   constructor(private onEvent: OnEventCallback) {
@@ -23,7 +41,7 @@ export class EventDelegator {
     this.eventInfoStore = new EventInfoStore(this.onGlobalEvent.bind(this));
   }
 
-  public setListener(element: Element, eventName: string, eventHandlerId: number) {
+  public setListener(element: Element, eventName: string, eventHandlerId: number, renderingComponentId: number) {
     // Ensure we have a place to store event info for this element
     let infoForElement: EventHandlerInfosForElement = element[this.eventsCollectionKey];
     if (!infoForElement) {
@@ -36,7 +54,7 @@ export class EventDelegator {
       this.eventInfoStore.update(oldInfo.eventHandlerId, eventHandlerId);
     } else {
       // Go through the whole flow which might involve registering a new global handler
-      const newInfo = { element, eventName, eventHandlerId };
+      const newInfo = { element, eventName, eventHandlerId, renderingComponentId };
       this.eventInfoStore.add(newInfo);
       infoForElement[eventName] = newInfo;
     }
@@ -72,7 +90,7 @@ export class EventDelegator {
     const eventIsNonBubbling = nonBubblingEvents.hasOwnProperty(evt.type);
     while (candidateElement) {
       if (candidateElement.hasOwnProperty(this.eventsCollectionKey)) {
-        const handlerInfos = candidateElement[this.eventsCollectionKey];
+        const handlerInfos: EventHandlerInfosForElement = candidateElement[this.eventsCollectionKey];
         if (handlerInfos.hasOwnProperty(evt.type)) {
           // We are going to raise an event for this element, so prepare info needed by the .NET code
           if (!eventArgs) {
@@ -80,7 +98,8 @@ export class EventDelegator {
           }
 
           const handlerInfo = handlerInfos[evt.type];
-          this.onEvent(evt, handlerInfo.eventHandlerId, eventArgs);
+          const eventFieldInfo = EventFieldInfo.fromEvent(handlerInfo.renderingComponentId, evt);
+          this.onEvent(evt, handlerInfo.eventHandlerId, eventArgs, eventFieldInfo);
         }
       }
 
@@ -93,6 +112,7 @@ export class EventDelegator {
 // for a given event name changes between zero and nonzero
 class EventInfoStore {
   private infosByEventHandlerId: { [eventHandlerId: number]: EventHandlerInfo } = {};
+
   private countByEventName: { [eventName: string]: number } = {};
 
   constructor(private globalListener: EventListener) {
@@ -155,17 +175,24 @@ interface EventHandlerInfosForElement {
   // can only have one attribute with a given name, hence only one event handler with
   // that name at any one time.
   // So to keep things simple, only track one EventHandlerInfo per (element, eventName)
-  [eventName: string]: EventHandlerInfo
+  [eventName: string]: EventHandlerInfo;
 }
 
 interface EventHandlerInfo {
   element: Element;
   eventName: string;
   eventHandlerId: number;
+
+  // The component whose tree includes the event handler attribute frame, *not* necessarily the
+  // same component that will be re-rendered after the event is handled (since we re-render the
+  // component that supplied the delegate, not the one that rendered the event handler frame)
+  renderingComponentId: number;
 }
 
 function toLookup(items: string[]): { [key: string]: boolean } {
   const result = {};
-  items.forEach(value => { result[value] = true; });
+  items.forEach(value => {
+    result[value] = true;
+  });
   return result;
 }

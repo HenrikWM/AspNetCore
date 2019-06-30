@@ -11,18 +11,21 @@ namespace Microsoft.AspNetCore.Components.Forms
     /// </summary>
     public class InputSelect<T> : InputBase<T>
     {
-        [Parameter] RenderFragment ChildContent { get; set; }
+        /// <summary>
+        /// Gets or sets the child content to be rendering inside the select element.
+        /// </summary>
+        [Parameter] public RenderFragment ChildContent { get; private set; }
 
         /// <inheritdoc />
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {
-            base.BuildRenderTree(builder);
             builder.OpenElement(0, "select");
-            builder.AddAttribute(1, "id", Id);
-            builder.AddAttribute(2, "class", CssClass);
-            builder.AddAttribute(3, "value", BindMethods.GetValue(CurrentValueAsString));
-            builder.AddAttribute(4, "onchange", BindMethods.SetValueHandler(__value => CurrentValueAsString = __value, CurrentValueAsString));
-            builder.AddContent(5, ChildContent);
+            builder.AddMultipleAttributes(1, AdditionalAttributes);
+            builder.AddAttribute(2, "id", Id);
+            builder.AddAttribute(3, "class", CssClass);
+            builder.AddAttribute(4, "value", BindMethods.GetValue(CurrentValueAsString));
+            builder.AddAttribute(5, "onchange", BindMethods.SetValueHandler(__value => CurrentValueAsString = __value, CurrentValueAsString));
+            builder.AddContent(6, ChildContent);
             builder.CloseElement();
         }
 

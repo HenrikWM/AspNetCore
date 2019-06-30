@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -104,6 +104,25 @@ namespace Microsoft.AspNetCore.Components.RenderTree
         {
             _itemsInUse--;
             _items[_itemsInUse] = default(T); // Release to GC
+        }
+
+        /// <summary>
+        /// Inserts the item at the specified index, moving the contents of the subsequent entries along by one.
+        /// </summary>
+        /// <param name="insertAtIndex">The index at which the value is to be inserted.</param>
+        /// <param name="value">The value to insert.</param>
+        public void InsertExpensive(int insertAtIndex, T value)
+        {
+            // Same expansion logic as elsewhere
+            if (_itemsInUse == _items.Length)
+            {
+                SetCapacity(_items.Length * 2, preserveContents: true);
+            }
+
+            Array.Copy(_items, insertAtIndex, _items, insertAtIndex + 1, _itemsInUse - insertAtIndex);
+            _itemsInUse++;
+
+            _items[insertAtIndex] = value;
         }
 
         /// <summary>

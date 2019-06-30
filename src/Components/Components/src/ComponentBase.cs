@@ -1,9 +1,9 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using Microsoft.AspNetCore.Components.RenderTree;
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components.RenderTree;
 
 namespace Microsoft.AspNetCore.Components
 {
@@ -25,11 +25,6 @@ namespace Microsoft.AspNetCore.Components
     /// </summary>
     public abstract class ComponentBase : IComponent, IHandleEvent, IHandleAfterRender
     {
-        /// <summary>
-        /// Specifies the name of the <see cref="RenderTree"/>-building method.
-        /// </summary>
-        public const string BuildRenderTreeMethodName = nameof(BuildRenderTree);
-
         private readonly RenderFragment _renderFragment;
         private RenderHandle _renderHandle;
         private bool _initialized;
@@ -41,7 +36,12 @@ namespace Microsoft.AspNetCore.Components
         /// </summary>
         public ComponentBase()
         {
-            _renderFragment = BuildRenderTree;
+            _renderFragment = builder =>
+            {
+                _hasPendingQueuedRender = false;
+                _hasNeverRendered = false;
+                BuildRenderTree(builder);
+            };
         }
 
         /// <summary>
@@ -52,8 +52,9 @@ namespace Microsoft.AspNetCore.Components
         {
             // Developers can either override this method in derived classes, or can use Razor
             // syntax to define a derived class and have the compiler generate the method.
-            _hasPendingQueuedRender = false;
-            _hasNeverRendered = false;
+
+            // Other code within this class should *not* invoke BuildRenderTree directly,
+            // but instead should invoke the _renderFragment field.
         }
 
         /// <summary>
@@ -207,12 +208,16 @@ namespace Microsoft.AspNetCore.Components
                 {
                     await task;
                 }
-                catch when (task.IsCanceled)
+                catch // avoiding exception filters for AOT runtime support
                 {
                     // Ignore exceptions from task cancelletions.
                     // Awaiting a canceled task may produce either an OperationCanceledException (if produced as a consequence of
                     // CancellationToken.ThrowIfCancellationRequested()) or a TaskCanceledException (produced as a consequence of awaiting Task.FromCanceled).
                     // It's much easier to check the state of the Task (i.e. Task.IsCanceled) rather than catch two distinct exceptions.
+                     if (!task.IsCanceled)
+                     {
+                        throw;
+                     }
                 }
 
                 // Don't call StateHasChanged here. CallOnParametersSetAsync should handle that for us.
@@ -246,10 +251,15 @@ namespace Microsoft.AspNetCore.Components
             {
                 await task;
             }
-            catch when (task.IsCanceled)
+            catch // avoiding exception filters for AOT runtime support
             {
                 // Ignore exceptions from task cancelletions, but don't bother issuing a state change.
-                return;
+                if (task.IsCanceled)
+                {
+                    return;
+                }
+
+                throw;
             }
 
             StateHasChanged();
