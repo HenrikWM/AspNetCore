@@ -5,6 +5,7 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Testing;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Components
@@ -22,7 +23,7 @@ namespace Microsoft.AspNetCore.Components
             var binder = EventCallback.Factory.CreateBinder(component, setter, value);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "not-an-integer!", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "not-an-integer!", });
 
             Assert.Equal(17, value); // Setter not called
             Assert.Equal(1, component.Count);
@@ -39,7 +40,7 @@ namespace Microsoft.AspNetCore.Components
             var binder = EventCallback.Factory.CreateBinder(component, setter, value);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = string.Empty, });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = string.Empty, });
 
             Assert.Equal(0, value); // Calls setter to apply default value for this type
             Assert.Equal(1, component.Count);
@@ -57,7 +58,7 @@ namespace Microsoft.AspNetCore.Components
             // Act
             await Assert.ThrowsAsync<InvalidTimeZoneException>(() =>
             {
-                return binder.InvokeAsync(new UIChangeEventArgs() { Value = "18", });
+                return binder.InvokeAsync(new ChangeEventArgs() { Value = "18", });
             });
 
             Assert.Equal(1, component.Count);
@@ -74,7 +75,7 @@ namespace Microsoft.AspNetCore.Components
             var binder = EventCallback.Factory.CreateBinder(component, setter, value);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "not-an-integer!", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "not-an-integer!", });
 
             Assert.Equal(17, value); // Setter not called
             Assert.Equal(1, component.Count);
@@ -91,7 +92,7 @@ namespace Microsoft.AspNetCore.Components
             var binder = EventCallback.Factory.CreateBinder(component, setter, value);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "", });
 
             Assert.Null(value); // Setter called
             Assert.Equal(1, component.Count);
@@ -110,7 +111,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = "bye";
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue, });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue, });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -129,7 +130,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = true;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = true, });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = true, });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -148,7 +149,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (bool?)true;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = true, });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = true, });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -167,7 +168,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = 42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -186,7 +187,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (int?)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -205,7 +206,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (long)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -224,7 +225,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (long?)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -243,7 +244,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (float)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -262,7 +263,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (float?)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -281,7 +282,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (double)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -300,7 +301,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (double?)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -319,7 +320,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (decimal)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -338,7 +339,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = (decimal?)42;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = "42", });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42", });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -357,7 +358,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = AttributeTargets.Class;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -376,7 +377,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = AttributeTargets.Class;
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -395,7 +396,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = new DateTime(2018, 3, 4, 1, 2, 3);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -414,13 +415,12 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = new DateTime(2018, 3, 4, 1, 2, 3);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
         }
 
-        // For now format is only supported by this specific method.
         [Fact]
         public async Task CreateBinder_DateTime_Format()
         {
@@ -435,7 +435,105 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = new DateTime(2018, 3, 4);
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(format), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(format), });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_NullableDateTime_Format()
+        {
+            // Arrange
+            var value = (DateTime?)DateTime.Now;
+            var component = new EventCountingComponent();
+            Action<DateTime?> setter = (_) => value = _;
+            var format = "ddd yyyy-MM-dd";
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+            var expectedValue = new DateTime(2018, 3, 4);
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(format), });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_DateTimeOffset()
+        {
+            // Arrange
+            var value = DateTimeOffset.Now;
+            var component = new EventCountingComponent();
+            Action<DateTimeOffset> setter = (_) => value = _;
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value);
+
+            var expectedValue = new DateTime(2018, 3, 4, 1, 2, 3);
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_NullableDateTimeOffset()
+        {
+            // Arrange
+            var value = (DateTimeOffset?)DateTimeOffset.Now;
+            var component = new EventCountingComponent();
+            Action<DateTimeOffset?> setter = (_) => value = _;
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value);
+
+            var expectedValue = new DateTime(2018, 3, 4, 1, 2, 3);
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_DateTimeOffset_Format()
+        {
+            // Arrange
+            var value = DateTimeOffset.Now;
+            var component = new EventCountingComponent();
+            Action<DateTimeOffset> setter = (_) => value = _;
+            var format = "ddd yyyy-MM-dd";
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+            var expectedValue = new DateTime(2018, 3, 4);
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(format), });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_NullableDateTimeOffset_Format()
+        {
+            // Arrange
+            var value = (DateTimeOffset?)DateTimeOffset.Now;
+            var component = new EventCountingComponent();
+            Action<DateTimeOffset?> setter = (_) => value = _;
+            var format = "ddd yyyy-MM-dd";
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+            var expectedValue = new DateTime(2018, 3, 4);
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(format), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -455,7 +553,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = Guid.NewGuid();
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -475,7 +573,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = Guid.NewGuid();
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue, value);
             Assert.Equal(1, component.Count);
@@ -494,7 +592,7 @@ namespace Microsoft.AspNetCore.Components
             var expectedValue = new SecretMessage() { Message = "TypeConverter may be old, but it still works!", };
 
             // Act
-            await binder.InvokeAsync(new UIChangeEventArgs() { Value = expectedValue.ToString(), });
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = expectedValue.ToString(), });
 
             Assert.Equal(expectedValue.Message, value.Message);
             Assert.Equal(1, component.Count);
@@ -515,6 +613,45 @@ namespace Microsoft.AspNetCore.Components
                 ex.Message);
         }
 
+        [Fact]
+        [ReplaceCulture("fr-FR", "fr-FR")]
+        public async Task CreateBinder_NumericType_WithCurrentCulture()
+        {
+            // Arrange
+            var value = 17_000;
+            var component = new EventCountingComponent();
+            Action<int> setter = (_) => value = _;
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value, culture: null);
+
+            var expectedValue = 42_000;
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42 000,00", });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
+        [Fact]
+        public async Task CreateBinder_NumericType_WithInvariantCulture()
+        {
+            // Arrange
+            var value = 17_000;
+            var component = new EventCountingComponent();
+            Action<int> setter = (_) => value = _;
+
+            var binder = EventCallback.Factory.CreateBinder(component, setter, value, CultureInfo.InvariantCulture);
+
+            var expectedValue = 42_000;
+
+            // Act
+            await binder.InvokeAsync(new ChangeEventArgs() { Value = "42,000.00", });
+
+            Assert.Equal(expectedValue, value);
+            Assert.Equal(1, component.Count);
+        }
+
         private class EventCountingComponent : IComponent, IHandleEvent
         {
             public int Count;
@@ -525,12 +662,12 @@ namespace Microsoft.AspNetCore.Components
                 return item.InvokeAsync(arg);
             }
 
-            public void Configure(RenderHandle renderHandle)
+            public void Attach(RenderHandle renderHandle)
             {
                 throw new System.NotImplementedException();
             }
 
-            public Task SetParametersAsync(ParameterCollection parameters)
+            public Task SetParametersAsync(ParameterView parameters)
             {
                 throw new System.NotImplementedException();
             }

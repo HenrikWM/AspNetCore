@@ -20,6 +20,7 @@ namespace Microsoft.AspNetCore.TestHost
         private bool _aborted;
         private Exception _abortException;
 
+        private readonly object _abortLock = new object();
         private readonly Action _abortRequest;
         private readonly Action _readComplete;
         private readonly Pipe _pipe;
@@ -80,9 +81,13 @@ namespace Microsoft.AspNetCore.TestHost
             using var registration = cancellationToken.Register(Cancel);
             var result = await _pipe.Reader.ReadAsync(cancellationToken);
 
+            if (result.IsCanceled)
+            {
+                throw new OperationCanceledException();
+            }
+
             if (result.Buffer.IsEmpty && result.IsCompleted)
             {
-                _pipe.Reader.Complete();
                 _readComplete();
                 _readerComplete = true;
                 return 0;
@@ -114,23 +119,30 @@ namespace Microsoft.AspNetCore.TestHost
 
         internal void Cancel()
         {
-            _aborted = true;
-            _abortException = new OperationCanceledException();
-            _pipe.Writer.Complete(_abortException);
+            Abort(new OperationCanceledException());
         }
 
         internal void Abort(Exception innerException)
         {
             Contract.Requires(innerException != null);
-            _aborted = true;
-            _abortException = innerException;
+
+            lock (_abortLock)
+            {
+                _abortException = innerException;
+                _aborted = true;
+            }
+
+            _pipe.Reader.CancelPendingRead();
         }
 
         private void CheckAborted()
         {
-            if (_aborted)
+            lock (_abortLock)
             {
-                throw new IOException(string.Empty, _abortException);
+                if (_aborted)
+                {
+                    throw new IOException(string.Empty, _abortException);
+                }
             }
         }
 
@@ -140,6 +152,9 @@ namespace Microsoft.AspNetCore.TestHost
             {
                 _abortRequest();
             }
+
+            _pipe.Reader.Complete();
+
             base.Dispose(disposing);
         }
     }

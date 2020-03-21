@@ -430,7 +430,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             Assert.NotNull(readException);
 
-            Assert.Contains(TestSink.Writes, w => w.EventId.Id == 17 && w.LogLevel == LogLevel.Information && w.Exception is BadHttpRequestException
+            Assert.Contains(TestSink.Writes, w => w.EventId.Id == 17 && w.LogLevel <= LogLevel.Debug && w.Exception is BadHttpRequestException
                 && ((BadHttpRequestException)w.Exception).StatusCode == StatusCodes.Status400BadRequest);
         }
 
@@ -1749,7 +1749,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 }
             }
 
-            Assert.Contains(TestApplicationErrorLogger.Messages, w => w.EventId.Id == 17 && w.LogLevel == LogLevel.Information && w.Exception is BadHttpRequestException
+            Assert.Contains(TestApplicationErrorLogger.Messages, w => w.EventId.Id == 17 && w.LogLevel <= LogLevel.Debug && w.Exception is BadHttpRequestException
                 && ((BadHttpRequestException)w.Exception).StatusCode == StatusCodes.Status400BadRequest);
         }
 
@@ -1801,7 +1801,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                     {
                         while (TestApplicationErrorLogger.Messages.TryDequeue(out var message))
                         {
-                            if (message.EventId.Id == 17 && message.LogLevel == LogLevel.Information && message.Exception is BadHttpRequestException
+                            if (message.EventId.Id == 17 && message.LogLevel <= LogLevel.Debug && message.Exception is BadHttpRequestException
                                 && ((BadHttpRequestException)message.Exception).StatusCode == StatusCodes.Status400BadRequest)
                             {
                                 foundMessage = true;
@@ -1862,7 +1862,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 }
             }
 
-            Assert.Contains(TestApplicationErrorLogger.Messages, w => w.EventId.Id == 17 && w.LogLevel == LogLevel.Information && w.Exception is BadHttpRequestException
+            Assert.Contains(TestApplicationErrorLogger.Messages, w => w.EventId.Id == 17 && w.LogLevel <= LogLevel.Debug && w.Exception is BadHttpRequestException
                 && ((BadHttpRequestException)w.Exception).StatusCode == StatusCodes.Status400BadRequest);
         }
 
@@ -2541,6 +2541,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
         }
 
         [Fact]
+        [QuarantinedTest]
         public async Task AppAbortViaIConnectionLifetimeFeatureIsLogged()
         {
             var testContext = new TestServiceContext(LoggerFactory);
@@ -2903,9 +2904,58 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var expectedString = new string('a', expectedLength);
             await using (var server = new TestServer(async httpContext =>
             {
-                httpContext.Response.Headers["Content-Length"] = new[] { expectedLength.ToString() };
+                httpContext.Response.ContentLength = expectedLength;
                 await httpContext.Response.WriteAsync(expectedString);
                 Assert.True(httpContext.Response.HasStarted);
+            }, testContext))
+            {
+                using (var connection = server.CreateConnection())
+                {
+                    await connection.Send(
+                        "GET / HTTP/1.1",
+                        "Host:",
+                        "",
+                        "");
+                    await connection.Receive(
+                        "HTTP/1.1 200 OK",
+                        $"Date: {testContext.DateHeaderValue}",
+                        $"Content-Length: {expectedLength}",
+                        "",
+                        expectedString);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task UnflushedContentLengthResponseIsFlushedAutomatically()
+        {
+            var testContext = new TestServiceContext(LoggerFactory);
+            var expectedLength = 100000;
+            var expectedString = new string('a', expectedLength);
+
+            void WriteStringWithoutFlushing(PipeWriter writer, string content)
+            {
+                var encoder = Encoding.ASCII.GetEncoder();
+                var encodedLength = Encoding.ASCII.GetByteCount(expectedString);
+                var source = expectedString.AsSpan();
+                var completed = false;
+
+                while (!completed)
+                {
+                    encoder.Convert(source, writer.GetSpan(), flush: source.Length == 0, out var charsUsed, out var bytesUsed, out completed);
+                    writer.Advance(bytesUsed);
+                    source = source.Slice(charsUsed);
+                }
+            }
+
+            await using (var server = new TestServer(httpContext =>
+            {
+                httpContext.Response.ContentLength = expectedLength;
+
+                WriteStringWithoutFlushing(httpContext.Response.BodyWriter, expectedString);
+
+                Assert.False(httpContext.Response.HasStarted);
+                return Task.CompletedTask;
             }, testContext))
             {
                 using (var connection = server.CreateConnection())
@@ -3891,7 +3941,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 httpContext.Response.BodyWriter.Complete();
 
                 writeEx = Assert.Throws<InvalidOperationException>(() => httpContext.Response.BodyWriter.GetMemory());
-  
+
                 return Task.CompletedTask;
             }, new TestServiceContext(LoggerFactory)))
             {
@@ -4067,13 +4117,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             if (sendMalformedRequest)
             {
-                Assert.Contains(testSink.Writes, w => w.EventId.Id == 17 && w.LogLevel == LogLevel.Information && w.Exception is BadHttpRequestException
+                Assert.Contains(testSink.Writes, w => w.EventId.Id == 17 && w.LogLevel <= LogLevel.Debug && w.Exception is BadHttpRequestException
                     && ((BadHttpRequestException)w.Exception).StatusCode == StatusCodes.Status400BadRequest);
             }
             else
             {
-                Assert.DoesNotContain(testSink.Writes, w => w.EventId.Id == 17 && w.LogLevel == LogLevel.Information && w.Exception is BadHttpRequestException
-                    && ((BadHttpRequestException)w.Exception).StatusCode == StatusCodes.Status400BadRequest);
+                Assert.DoesNotContain(testSink.Writes, w => w.EventId.Id == 17);
             }
         }
 
